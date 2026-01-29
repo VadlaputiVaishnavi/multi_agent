@@ -41,7 +41,14 @@ pymupdf
 #Vector store
 faiss-cpu
 
-#search tool
+
+
+streamlit
+langchain
+langchain-community
+langchain-google-genai
+langchain-classic
+google-generativeai
 wikipedia
-duckduckgo-search
 arxiv
+duckduckgo-search

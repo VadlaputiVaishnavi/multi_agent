@@ -1,82 +1,105 @@
+
+
+
+
 import streamlit as st
-import requests
+import os
+import warnings
+from typing import Dict, Any
 
-API_URL = "http://localhost:8000/run-agents"
+# LangChain & Gemini Imports
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.tools import DuckDuckGoSearchRun, WikipediaQueryRun, ArxivQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper
+from langchain_classic.agents import create_react_agent, AgentExecutor
+from langchain_core.prompts import PromptTemplate
+from langchain_classic import hub
 
-st.set_page_config(
-    page_title="Agent Orchestration Framework",
-    page_icon="🤖",
-    layout="wide"
+# 1. Page Configuration
+st.set_page_config(page_title="Multi-Agent AI", page_icon="🤖", layout="wide")
+warnings.filterwarnings("ignore")
+
+# 2. Secret & Environment Setup
+# This line works for both local 'secrets.toml' and Streamlit Cloud 'Secrets'
+if "GOOGLE_API_KEY" in st.secrets:
+    os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+else:
+    st.error("🔑 API Key not found! Please check your .streamlit/secrets.toml file.")
+    st.stop()
+
+# 3. Initialize the Brain (LLM)
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash", 
+    temperature=0
 )
 
-st.title("🤖 Agent Orchestration Framework")
-st.caption("Research • Critic • Summary • Email")
+# 4. Tools & Agents Setup
+search = DuckDuckGoSearchRun()
+wiki = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper())
+arxiv = ArxivQueryRun()
+tools = [search, wiki, arxiv]
 
-query = st.text_input(
-    "Enter your research topic",
-    placeholder="Example: Impact of AI in Healthcare"
+# Pull the standard ReAct prompt from LangChain Hub
+prompt = hub.pull("hwchase17/react")
+
+# Create the Research Agent
+research_agent = create_react_agent(llm=llm, tools=tools, prompt=prompt)
+research_executor = AgentExecutor(
+    agent=research_agent, 
+    tools=tools, 
+    verbose=True, 
+    handle_parsing_errors=True
 )
 
-if st.button("Run Agents 🚀") and query:
+# 5. The Orchestrator Logic
+def run_orchestrator(query: str) -> Dict[str, Any]:
+    # Agent 1: Research
+    research_output = research_executor.invoke({"input": f"Research the topic: {query}"})
+    text_data = research_output.get("output", "Search failed.")
 
-    with st.status("🔍 Agents are working...", expanded=True) as status:
-        st.write("🔍 Research Agent running...")
-        response = requests.post(API_URL, json={"query": query})
-        data = response.json()
+    # Agent 2: Summarizer (Chain)
+    summary_prompt = PromptTemplate.from_template("Summarize this in 100 words: {text}")
+    summary_res = llm.invoke(summary_prompt.format(text=text_data))
 
-        st.write("🧠 Critic Agent reviewing...")
-        st.write("📄 Summarizer Agent completed")
-        st.write("📧 Email Agent completed")
+    # Agent 3: Email (Chain)
+    email_prompt = PromptTemplate.from_template("Write a professional email about: {text}")
+    email_res = llm.invoke(email_prompt.format(text=summary_res.content))
 
-        status.update(label="✅ All agents completed!", state="complete")
+    return {
+        "research": text_data,
+        "summary": summary_res.content,
+        "email": email_res.content
+    }
 
-    st.divider()
+# 6. Streamlit User Interface
+st.title("🤖 Multi-Agent AI System")
+st.caption("One query triggers Research, Summarization, and Email Composition.")
 
-    tabs = st.tabs([
-        "🔍 Research",
-        "🧠 Critic Review",
-        "📄 Summary",
-        "📊 Insights",
-        "✅ Fact Check",
-        "🏷️ Titles",
-        "🔗 Sources",
-        "📧 Email"
-    ])
+user_query = st.text_input("What would you like to research today?", placeholder="e.g. Advancements in Quantum Computing")
 
-    critic_text = data["critic"]
+if st.button("🚀 Execute Agents"):
+    if not user_query:
+        st.warning("Please enter a topic first.")
+    else:
+        with st.spinner("Agents are collaborating..."):
+            try:
+                data = run_orchestrator(user_query)
+                
+                # Layout Results in Tabs
+                tab1, tab2, tab3 = st.tabs(["🔍 Research", "📄 Summary", "✉️ Email"])
+                
+                with tab1:
+                    st.markdown("### Detailed Research Results")
+                    st.info(data["research"])
+                
+                with tab2:
+                    st.markdown("### Concise Summary")
+                    st.success(data["summary"])
+                    
+                with tab3:
+                    st.markdown("### Generated Email Draft")
+                    st.code(data["email"], language="markdown")
+                    st.button("📋 Copy to Clipboard", on_click=lambda: st.write("Copied! (Simulated)"))
 
-    with tabs[0]:  # 🔍 Research
-        st.markdown(data["research"])
-
-    with tabs[1]:  # 🧠 Critic Review
-        st.markdown(data["critic"])
-
-    with tabs[2]:  # 📄 Summary
-        st.markdown(data["summary"])
-
-    with tabs[3]:  # 📊 Insights
-        st.markdown(
-            critic_text.split("Insights")[1].split("Titles")[0]
-        )
-
-    with tabs[4]:  # ✅ Fact Check
-        st.markdown(
-            critic_text.split("Fact Check")[1].split("Insights")[0]
-        )
-
-    with tabs[5]:  # 🏷️ Titles
-        st.markdown(
-            critic_text.split("Titles")[1].split("Sources")[0]
-        )
-
-    with tabs[6]:  # 🔗 Sources
-        st.markdown(
-            critic_text.split("Sources")[1]
-        )
-
-    with tabs[7]:  # 📧 Email
-        st.text_area(
-            "Generated Email",
-            data["email"],
-            height=260
-        )
+            except Exception as e:
+                st.error(f"Execution Error: {str(e)}")
