@@ -1,80 +1,12 @@
-# import os
-# from typing import TypedDict, List
-# from langchain_google_genai import ChatGoogleGenerativeAI
-# from langchain_core.messages import SystemMessage, HumanMessage
-# from langchain_community.tools import DuckDuckGoSearchRun
-# from langchain_community.utilities import WikipediaAPIWrapper
-# from langchain_community.tools import WikipediaQueryRun
-# from dotenv import load_dotenv
-
-# load_dotenv()
-
-# class AgentState(TypedDict):
-#     query: str
-#     research: str
-#     critique: str
-#     email: str
-#     logs: List[str]
-
-# class MultiAgentSystem:
-#     def __init__(self):
-#         # Key is pulled from .env file for security
-#         self.llm = ChatGoogleGenerativeAI(
-#             model="gemini-2.5-flash", 
-#             google_api_key=os.getenv("GOOGLE_API_KEY"),
-#             temperature=0.3
-#         )
-#         # Search Tools
-#         self.search = DuckDuckGoSearchRun()
-#         self.wiki = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper())
-
-#     def research_agent(self, state: AgentState):
-#         """Phase 1: Real-time Web Research"""
-#         query = state['query']
-        
-#         # Perform actual web search
-#         search_results = self.search.run(query)
-#         wiki_results = self.wiki.run(query)
-        
-#         combined_data = f"Web Search: {search_results}\nWikipedia: {wiki_results}"
-        
-#         sys_msg = SystemMessage(content="You are a Senior Research Analyst. Synthesize the provided search data into a structured report.")
-#         res = self.llm.invoke([sys_msg, HumanMessage(content=f"Topic: {query}\nSource Data: {combined_data}")])
-        
-#         state['research'] = res.content
-#         state['logs'].append("✅ Research Agent: Web search and analysis complete.")
-#         return state
-
-#     def critic_agent(self, state: AgentState):
-#         """Phase 2: Quality Control"""
-#         sys_msg = SystemMessage(content="You are a Lead Editor. Review the research for gaps, bias, or missing details.")
-#         res = self.llm.invoke([sys_msg, HumanMessage(content=f"Review this research: {state['research']}")])
-#         state['critique'] = res.content
-#         state['logs'].append("⚖️ Critic Agent: Accuracy audit finalized.")
-#         return state
-
-#     def email_agent(self, state: AgentState):
-#         """Phase 3: Final Output"""
-#         sys_msg = SystemMessage(content="You are a Communications Expert. Draft a professional email based on the research and critique.")
-#         prompt = f"Research: {state['research']}\nCritique: {state['critique']}"
-#         res = self.llm.invoke([sys_msg, HumanMessage(content=prompt)])
-#         state['email'] = res.content
-#         state['logs'].append("📧 Email Agent: Final draft prepared.")
-#         return state
-
-
-
-
 import os
+import time
 from typing import TypedDict, List
-from dotenv import load_dotenv
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_community.tools import DuckDuckGoSearchRun, WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
-
-load_dotenv()
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 
 
 class AgentState(TypedDict):
@@ -87,24 +19,43 @@ class AgentState(TypedDict):
 
 class MultiAgentSystem:
     def __init__(self):
-        # LLM
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError("GOOGLE_API_KEY missing in Streamlit Secrets")
+
+        # ✅ USE STABLE MODEL
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
-            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            google_api_key=api_key,
             temperature=0.3,
         )
 
-        # Tools (cloud-safe)
         try:
             self.search = DuckDuckGoSearchRun()
-        except Exception as e:
+        except Exception:
             self.search = None
-            print("DuckDuckGo disabled:", e)
 
         self.wiki = WikipediaQueryRun(
             api_wrapper=WikipediaAPIWrapper(top_k_results=3)
         )
 
+    # ---------- SAFE INVOKE ----------
+    def safe_invoke(self, messages, state, agent_name):
+        try:
+            return self.llm.invoke(messages).content
+        except ChatGoogleGenerativeAIError as e:
+            if "RESOURCE_EXHAUSTED" in str(e):
+                state["logs"].append(
+                    f"🚫 {agent_name}: Gemini quota exceeded. Try later."
+                )
+                return "⚠️ Gemini API quota exceeded. Please try again later."
+            else:
+                state["logs"].append(
+                    f"❌ {agent_name}: Unexpected LLM error."
+                )
+                return "⚠️ An unexpected AI error occurred."
+
+    # ---------- AGENTS ----------
     def research_agent(self, state: AgentState):
         query = state["query"]
 
@@ -117,8 +68,10 @@ class MultiAgentSystem:
 
         wiki_data = self.wiki.run(query)
 
-        combined_data = f"""
-        Web Search:
+        prompt = f"""
+        Topic: {query}
+
+        Web:
         {web_data}
 
         Wikipedia:
@@ -126,31 +79,41 @@ class MultiAgentSystem:
         """
 
         sys_msg = SystemMessage(
-            content="You are a Senior Research Analyst. Create a concise, structured research summary."
+            content="You are a senior research analyst. Summarize clearly."
         )
 
-        res = self.llm.invoke(
-            [sys_msg, HumanMessage(content=combined_data)]
+        state["research"] = self.safe_invoke(
+            [sys_msg, HumanMessage(content=prompt)],
+            state,
+            "Research Agent",
         )
 
-        state["research"] = res.content
         state["logs"].append("✅ Research completed")
         return state
 
     def critic_agent(self, state: AgentState):
+        if "quota exceeded" in state["research"].lower():
+            state["critique"] = state["research"]
+            return state
+
         sys_msg = SystemMessage(
-            content="You are a Lead Editor. Improve clarity, correctness, and depth."
+            content="You are a lead editor. Improve clarity and correctness."
         )
 
-        res = self.llm.invoke(
-            [sys_msg, HumanMessage(content=state["research"])]
+        state["critique"] = self.safe_invoke(
+            [sys_msg, HumanMessage(content=state["research"])],
+            state,
+            "Critic Agent",
         )
 
-        state["critique"] = res.content
         state["logs"].append("⚖️ Critique completed")
         return state
 
     def email_agent(self, state: AgentState):
+        if "quota exceeded" in state["critique"].lower():
+            state["email"] = state["critique"]
+            return state
+
         sys_msg = SystemMessage(
             content="You are a professional email writer."
         )
@@ -162,13 +125,14 @@ class MultiAgentSystem:
         Critique:
         {state["critique"]}
 
-        Write a polished professional email.
+        Write a professional email.
         """
 
-        res = self.llm.invoke(
-            [sys_msg, HumanMessage(content=prompt)]
+        state["email"] = self.safe_invoke(
+            [sys_msg, HumanMessage(content=prompt)],
+            state,
+            "Email Agent",
         )
 
-        state["email"] = res.content
         state["logs"].append("📧 Email generated")
         return state

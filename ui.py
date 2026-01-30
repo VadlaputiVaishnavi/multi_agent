@@ -1,4 +1,4 @@
-import streamlit as st   # ← THIS LINE FIXES THE ERROR
+import streamlit as st
 from app import MultiAgentSystem
 
 st.set_page_config(
@@ -8,22 +8,25 @@ st.set_page_config(
 )
 
 st.title("🤖 Multi-Agent Research Assistant")
-st.write("Research → Critique → Professional Email (powered by Gemini)")
 
 @st.cache_resource
 def load_system():
     return MultiAgentSystem()
 
-system = load_system()
+try:
+    system = load_system()
+except Exception as e:
+    st.error(str(e))
+    st.stop()
 
 query = st.text_input(
     "Enter your research topic:",
-    placeholder="e.g. Impact of AI on software engineering jobs",
+    placeholder="Impact of AI on software engineering jobs",
 )
 
 if st.button("🚀 Run Agents"):
     if not query:
-        st.warning("⚠️ Please enter a topic first.")
+        st.warning("Please enter a topic.")
     else:
         state = {
             "query": query,
@@ -33,16 +36,16 @@ if st.button("🚀 Run Agents"):
             "logs": [],
         }
 
-        with st.spinner("🔍 Research Agent working..."):
+        with st.spinner("🔍 Researching..."):
             state = system.research_agent(state)
 
-        with st.spinner("⚖️ Critic Agent reviewing..."):
+        with st.spinner("⚖️ Reviewing..."):
             state = system.critic_agent(state)
 
-        with st.spinner("📧 Email Agent drafting..."):
+        with st.spinner("📧 Writing email..."):
             state = system.email_agent(state)
 
-        st.success("✅ Done!")
+        st.success("Done!")
 
         tab1, tab2, tab3 = st.tabs(["📚 Research", "⚖️ Critique", "📧 Email"])
 
@@ -55,6 +58,6 @@ if st.button("🚀 Run Agents"):
         with tab3:
             st.markdown(state["email"])
 
-        with st.expander("🪵 Execution Logs"):
+        with st.expander("Execution Logs"):
             for log in state["logs"]:
                 st.write(log)

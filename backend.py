@@ -25,12 +25,4 @@ async def run_pipeline(request: TaskRequest):
     state = system.critic_agent(state)
     state = system.email_agent(state)
 
-    return {
-        "status": "success",
-        "logs": state["logs"],
-        "data": {
-            "research": state["research"],
-            "critique": state["critique"],
-            "email": state["email"],
-        },
-    }
+    return {"status": "success", "data": state}
