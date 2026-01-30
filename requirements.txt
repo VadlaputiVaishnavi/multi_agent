@@ -1,58 +1,58 @@
-# # LangChain Core
-# langchain
-# langchain-core
+# LangChain Core
+langchain
+langchain-core
 
 
 
-# # Anthropic Integration
-# langchain-anthropic
+# Anthropic Integration
+langchain-anthropic
 
-# # Google Gemini (PaLM) Integration
-# langchain-google-genai
-# google-generativeai
+# Google Gemini (PaLM) Integration
+langchain-google-genai
+google-generativeai
 
-# # Hugging Face Integration
-# langchain-huggingface
-# transformers
-# huggingface-hub
-# sentence-transformers
+# Hugging Face Integration
+langchain-huggingface
+transformers
+huggingface-hub
+sentence-transformers
 
-# # Environment Variable Management
-# python-dotenv
-# dotenv
+# Environment Variable Management
+python-dotenv
+dotenv
 
-# # Machine Learning Utilities
-# numpy
-# scikit-learn
+# Machine Learning Utilities
+numpy
+scikit-learn
 
-# # Pytorch --If asked to install when run the open source model from huggingface.
-# torch
-# torchvision
-# torchaudio
+# Pytorch --If asked to install when run the open source model from huggingface.
+torch
+torchvision
+torchaudio
 
-# #streamlit
-# streamlit
+#streamlit
+streamlit
 
-# pypdf
-# pymupdf
+pypdf
+pymupdf
 
-# #Vector store
-# faiss-cpu
-
-
-
-# streamlit
-# langchain
-# langchain-community
-# langchain-google-genai
-# langchain-classic
-# google-generativeai
-# wikipedia
-# arxiv
-# duckduckgo-search 
+#Vector store
+faiss-cpu
 
 
 
-# streamlit-lottie
+streamlit
+langchain
+langchain-community
+langchain-google-genai
+langchain-classic
+google-generativeai
+wikipedia
+arxiv
+duckduckgo-search 
 
-# requests
+
+
+streamlit-lottie
+
+requests
