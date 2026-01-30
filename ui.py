@@ -1,52 +1,60 @@
-import streamlit as st
+import streamlit as st   # ← THIS LINE FIXES THE ERROR
 from app import MultiAgentSystem
 
-# --- Page Setup ---
-st.set_page_config(page_title="AgentOS Executive", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="Multi-Agent Research Assistant",
+    page_icon="🤖",
+    layout="wide",
+)
 
-# --- Custom Styling ---
-st.markdown("""
-    <style>
-    [data-testid="stSidebar"] {display: none;}
-    .stApp { background-color: #0e1117; color: #ffffff; }
-    .main-title { font-size: 3rem; font-weight: 800; color: #00d4ff; margin-bottom: 0; }
-    .log-text { font-family: monospace; color: #00ff41; font-size: 14px; background: #000; padding: 10px; border-radius: 5px; }
-    </style>
-""", unsafe_allow_html=True)
+st.title("🤖 Multi-Agent Research Assistant")
+st.write("Research → Critique → Professional Email (powered by Gemini)")
 
-st.markdown('<p class="main-title">AgentOS Executive</p>', unsafe_allow_html=True)
-st.markdown("##### Autonomous Multi-Agent Research & Drafting Pipeline")
-st.divider()
+@st.cache_resource
+def load_system():
+    return MultiAgentSystem()
 
-# Only the search input is visible
-query = st.text_input("ENTER MISSION OBJECTIVE", placeholder="Search for a topic or define a goal...")
+system = load_system()
 
-if st.button("🚀 EXECUTE SEARCH", use_container_width=True):
+query = st.text_input(
+    "Enter your research topic:",
+    placeholder="e.g. Impact of AI on software engineering jobs",
+)
+
+if st.button("🚀 Run Agents"):
     if not query:
-        st.warning("Please enter a search query.")
+        st.warning("⚠️ Please enter a topic first.")
     else:
-        system = MultiAgentSystem()
-        state = {"query": query, "research": "", "critique": "", "email": "", "logs": []}
-        
-        # Results layout
-        t1, t2, t3 = st.tabs(["🔍 INVESTIGATION", "⚖️ AUDIT", "📧 DELIVERABLE"])
-        
-        with st.status("📡 Orchestrating Agents...", expanded=True) as status:
-            log_box = st.empty()
-            
-            # Agent Execution
-            state = system.research_agent(state)
-            log_box.markdown(f'<p class="log-text">{"<br>".join(state["logs"])}</p>', unsafe_allow_html=True)
-            t1.markdown(state['research'])
-            
-            state = system.critic_agent(state)
-            log_box.markdown(f'<p class="log-text">{"<br>".join(state["logs"])}</p>', unsafe_allow_html=True)
-            t2.markdown(state['critique'])
-            
-            state = system.email_agent(state)
-            log_box.markdown(f'<p class="log-text">{"<br>".join(state["logs"])}</p>', unsafe_allow_html=True)
-            t3.markdown(state['email'])
-            
-            status.update(label="✅ TASK COMPLETED", state="complete", expanded=False)
+        state = {
+            "query": query,
+            "research": "",
+            "critique": "",
+            "email": "",
+            "logs": [],
+        }
 
-        st.success("All agents have finished. Results are in the tabs above.")
+        with st.spinner("🔍 Research Agent working..."):
+            state = system.research_agent(state)
+
+        with st.spinner("⚖️ Critic Agent reviewing..."):
+            state = system.critic_agent(state)
+
+        with st.spinner("📧 Email Agent drafting..."):
+            state = system.email_agent(state)
+
+        st.success("✅ Done!")
+
+        tab1, tab2, tab3 = st.tabs(["📚 Research", "⚖️ Critique", "📧 Email"])
+
+        with tab1:
+            st.markdown(state["research"])
+
+        with tab2:
+            st.markdown(state["critique"])
+
+        with tab3:
+            st.markdown(state["email"])
+
+        with st.expander("🪵 Execution Logs"):
+            for log in state["logs"]:
+                st.write(log)
