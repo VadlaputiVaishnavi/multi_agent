@@ -56,3 +56,12 @@ duckduckgo-search
 streamlit-lottie
 
 requests
+
+
+streamlit
+langchain-google-genai
+langchain-community
+duckduckgo-search
+wikipedia
+python-dotenv
+pydantic
