@@ -65,3 +65,4 @@ duckduckgo-search
 wikipedia
 python-dotenv
 pydantic
+python-dotenv
